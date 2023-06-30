@@ -53,6 +53,7 @@
 #include "debug/CachePort.hh"
 #include "debug/CacheRepl.hh"
 #include "debug/CacheVerbose.hh"
+#include "debug/HWIPrefetch.hh"
 #include "debug/HWPrefetch.hh"
 #include "mem/cache/compressors/base.hh"
 #include "mem/cache/mshr.hh"
@@ -81,8 +82,9 @@ BaseCache::CacheResponsePort::CacheResponsePort(const std::string &_name,
 
 BaseCache::BaseCache(const BaseCacheParams &p, unsigned blk_size)
     : ClockedObject(p),
-      cpuSidePort (p.name + ".cpu_side_port", this, "CpuSidePort"),
+      cpuSidePort(p.name + ".cpu_side_port", this, "CpuSidePort"),
       memSidePort(p.name + ".mem_side_port", this, "MemSidePort"),
+      cpuIPrefetchSidePort(p.name + "cpu_iprefetch_side_port", this),
       mshrQueue("MSHRs", p.mshrs, 0, p.demand_mshr_reserve, p.name),
       writeBuffer("write buffer", p.write_buffers, p.mshrs, p.name),
       tags(p.tags),
@@ -209,7 +211,9 @@ BaseCache::getPort(const std::string &if_name, PortID idx)
         return memSidePort;
     } else if (if_name == "cpu_side") {
         return cpuSidePort;
-    }  else {
+    }  else if (if_name == "cpu_iprefetch_side") {
+        return cpuIPrefetchSidePort;
+    } else {
         return ClockedObject::getPort(if_name, idx);
     }
 }
@@ -2686,6 +2690,31 @@ BaseCache::
 CpuSidePort::CpuSidePort(const std::string &_name, BaseCache *_cache,
                          const std::string &_label)
     : CacheResponsePort(_name, _cache, _label), cache(_cache)
+{
+}
+
+////////////////////////
+//
+// CpuIPrefetchSidePort
+//
+///////////////////////
+bool
+BaseCache::CpuIPrefetchSidePort::recvTimingReq(PacketPtr pkt)
+{
+    DPRINTF(HWIPrefetch, "recrive prefetch request.\n");
+    return true;
+}
+
+AddrRangeList
+BaseCache::CpuIPrefetchSidePort::getAddrRanges() const
+{
+    return cache->getAddrRanges();
+}
+
+BaseCache::
+CpuIPrefetchSidePort::CpuIPrefetchSidePort(const std::string &_name,
+                                           BaseCache *_cache)
+    : ResponsePort(_name, _cache)
 {
 }
 

@@ -142,6 +142,7 @@ class BaseCPU(ClockedObject):
 
     icache_port = RequestPort("Instruction Port")
     dcache_port = RequestPort("Data Port")
+    iprefetch_port = RequestPort("Instruction Prefetch Port")
     _cached_ports = ['icache_port', 'dcache_port']
 
     _uncached_interrupt_response_ports = []
@@ -178,6 +179,9 @@ class BaseCPU(ClockedObject):
     def connectBus(self, bus):
         self.connectAllPorts(bus.cpu_side_ports,
             bus.cpu_side_ports, bus.mem_side_ports)
+
+    def connectIPrefetchPort(self, cpu_iprefetch_side):
+        self.iprefetch_port = cpu_iprefetch_side
 
     def addPrivateSplitL1Caches(self, ic, dc, iwc = None, dwc = None):
         self.icache = ic

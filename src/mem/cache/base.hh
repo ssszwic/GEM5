@@ -336,8 +336,39 @@ class BaseCache : public ClockedObject
 
     };
 
+    class CpuIPrefetchSidePort : public ResponsePort
+    {
+      private:
+
+        // a pointer to our specific cache implementation
+        BaseCache *cache;
+
+      public:
+        /** Default constructor. */
+        CpuIPrefetchSidePort(const std::string &_name, BaseCache *_cache);
+
+      protected:
+
+        /** Timing version of receive. Receive prefetch request. */
+        virtual bool recvTimingReq(PacketPtr pkt);
+
+        /** Do nothing. */
+        virtual void recvRespRetry() {}
+
+        /** Do nothing. */
+        virtual Tick recvAtomic(PacketPtr pkt) override {
+            return 0;
+        }
+
+        /** Do nothing. */
+        virtual void recvFunctional(PacketPtr pkt) override {}
+
+        virtual AddrRangeList getAddrRanges() const override;
+    };
+
     CpuSidePort cpuSidePort;
     MemSidePort memSidePort;
+    CpuIPrefetchSidePort cpuIPrefetchSidePort;
 
   protected:
 

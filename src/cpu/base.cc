@@ -472,6 +472,8 @@ BaseCPU::getPort(const std::string &if_name, PortID idx)
         return getDataPort();
     else if (if_name == "icache_port")
         return getInstPort();
+    else if (if_name == "iprefetch_port")
+        return getIPrefetchPort();
     else
         return ClockedObject::getPort(if_name, idx);
 }

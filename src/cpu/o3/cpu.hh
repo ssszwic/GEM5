@@ -575,6 +575,14 @@ class CPU : public BaseCPU
         return fetch.getInstPort();
     }
 
+    /** Used by the fetch unit to get a hold of the instruction
+     * prefetch port. */
+    Port &
+    getIPrefetchPort() override
+    {
+        return fetch.getIPrefetchPort();
+    }
+
     /** Get the dcache port (used to find block size for translations). */
     Port &
     getDataPort() override

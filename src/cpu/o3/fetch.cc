@@ -84,6 +84,10 @@ Fetch::IcachePort::IcachePort(Fetch *_fetch, CPU *_cpu) :
         RequestPort(_cpu->name() + ".icache_port", _cpu), fetch(_fetch)
 {}
 
+Fetch::IPrefetchPort::IPrefetchPort(Fetch *_fetch, CPU *_cpu) :
+        RequestPort(_cpu->name() + ".iprefetch_port", _cpu), fetch(_fetch)
+{}
+
 
 Fetch::Fetch(CPU *_cpu, const BaseO3CPUParams &params)
     : fetchPolicy(params.smtFetchPolicy),
@@ -104,6 +108,7 @@ Fetch::Fetch(CPU *_cpu, const BaseO3CPUParams &params)
       numThreads(params.numThreads),
       numFetchingThreads(params.smtNumFetchingThreads),
       icachePort(this, _cpu),
+      iprefetchPort(this, _cpu),
       finishTranslationEvent(this), fetchStats(_cpu, this)
 {
     if (numThreads > MaxThreads)
@@ -1223,6 +1228,10 @@ Fetch::tick()
         usedUpFetchTargets = !dbsp->trySupplyFetchWithTarget(pc[0]->instAddr());
     } else if (isFTBPred()) {
         assert(dbpftb);
+        RequestPtr mem_req = std::make_shared<Request>
+                            (0, 0, Request::INST_FETCH, 0);
+        PacketPtr pkt = new Packet(mem_req, MemCmd::ReadReq);
+        iprefetchPort.sendTimingReq(pkt);
         dbpftb->tick();
         usedUpFetchTargets = !dbpftb->trySupplyFetchWithTarget(pc[0]->instAddr(), currentFetchTargetInLoop);
     }

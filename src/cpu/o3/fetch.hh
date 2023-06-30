@@ -52,10 +52,11 @@
 #include "cpu/o3/limits.hh"
 #include "cpu/pc_event.hh"
 #include "cpu/pred/bpred_unit.hh"
-#include "cpu/pred/stream/decoupled_bpred.hh"
 #include "cpu/pred/ftb/decoupled_bpred.hh"
+#include "cpu/pred/stream/decoupled_bpred.hh"
 #include "cpu/timebuf.hh"
 #include "cpu/translation.hh"
+#include "debug/HWIPrefetch.hh"
 #include "enums/SMTFetchPolicy.hh"
 #include "mem/packet.hh"
 #include "mem/port.hh"
@@ -104,6 +105,31 @@ class Fetch
 
         /** Handles doing a retry of a failed fetch. */
         virtual void recvReqRetry();
+    };
+
+    /**
+     * IPrefetchPort class for instruction prefetch.
+     */
+    class IPrefetchPort : public RequestPort
+    {
+      protected:
+        /** Pointer to fetch. */
+        Fetch *fetch;
+
+      public:
+        /** Default constructor. */
+        IPrefetchPort(Fetch *_fetch, CPU *_cpu);
+
+      protected:
+
+        /** Timing version of receive. Do nothing. */
+        virtual bool recvTimingResp(PacketPtr pkt)
+        {
+          return true;
+        }
+
+        /** Handles doing a retry of a failed prefetch. Do nothing. */
+        virtual void recvReqRetry() {}
     };
 
     class FetchTranslation : public BaseMMU::Translation
@@ -365,6 +391,8 @@ class Fetch
 
     RequestPort &getInstPort() { return icachePort; }
 
+    RequestPort &getIPrefetchPort() { return iprefetchPort; }
+
     branch_prediction::BPredUnit * getBp() { return branchPred; }
 
     void flushFetchBuffer();
@@ -560,6 +588,9 @@ class Fetch
 
     /** Instruction port. Note that it has to appear after the fetch stage. */
     IcachePort icachePort;
+
+    /** Instruction prefetch port. */
+    IPrefetchPort iprefetchPort;
 
     /** Set to true if a pipelined I-cache request should be issued. */
     bool issuePipelinedIfetch[MaxThreads];

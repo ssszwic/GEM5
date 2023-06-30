@@ -192,6 +192,17 @@ class BaseCPU : public ClockedObject
 
     /**
      * Purely virtual method that returns a reference to the instruction
+     * port. Subclasses which use FDIP must implement this method.
+     *
+     * @return a reference to the instruction prefetch port
+     */
+    virtual Port &getIPrefetchPort() {
+      panic("This function must be overrided!\n");
+      // return ClockedObject::getPort("abc", 0);
+    }
+
+    /**
+     * Purely virtual method that returns a reference to the instruction
      * port. All subclasses must implement this method.
      *
      * @return a reference to the instruction port

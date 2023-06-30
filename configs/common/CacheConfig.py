@@ -209,6 +209,10 @@ def config_cache(options, system):
             # from the CPU in question
             system.cpu[i].addPrivateSplitL1Caches(icache, dcache,
                                                   iwalkcache, dwalkcache)
+            # Instruction hardware prefetch connection.
+            # IFU.iprefetch_port -> icache.cpu_iprefetch_side
+            if options.iprefetch:
+                system.cpu[i].connectIPrefetchPort(icache.cpu_iprefetch_side)
 
             if options.memchecker:
                 # The mem_side ports of the caches haven't been connected yet.
