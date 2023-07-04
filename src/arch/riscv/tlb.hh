@@ -207,6 +207,9 @@ class TLB : public BaseTLB
     void translateTiming(const RequestPtr &req, ThreadContext *tc,
                          BaseMMU::Translation *translation,
                          BaseMMU::Mode mode) override;
+    void translateNoBlockedTiming(const RequestPtr &req, ThreadContext *tc,
+                         BaseMMU::Translation *translation,
+                         BaseMMU::Mode mode) override;
     Fault translateFunctional(const RequestPtr &req, ThreadContext *tc,
                               BaseMMU::Mode mode) override;
     Fault finalizePhysical(const RequestPtr &req, ThreadContext *tc,

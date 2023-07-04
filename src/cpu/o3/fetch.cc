@@ -109,6 +109,7 @@ Fetch::Fetch(CPU *_cpu, const BaseO3CPUParams &params)
       numFetchingThreads(params.smtNumFetchingThreads),
       icachePort(this, _cpu),
       iprefetchPort(this, _cpu),
+      iprefetchEnable(params.iprefetchEnable),
       finishTranslationEvent(this), fetchStats(_cpu, this)
 {
     if (numThreads > MaxThreads)
@@ -946,6 +947,32 @@ Fetch::finishTranslation(const Fault &fault, const RequestPtr &mem_req)
 }
 
 void
+Fetch::finishPrefetchTranslation(const Fault &fault, const RequestPtr &mem_req)
+{
+    if (!mem_req->hasPaddr()) {
+        DPRINTF(HWIPrefetch, "prefetch(addr %#lx) cancelled"
+                " because of tlb miss.\n", mem_req->getVaddr());
+        return;
+    }
+    if (fault) {
+        DPRINTF(HWIPrefetch, "prefetch(addr %#lx) cancelled"
+                " because of tlb fault: %s.\n",
+                mem_req->getVaddr(), fault->name());
+        return;
+    }
+    if (!cpu->system->isMemAddr(mem_req->getPaddr())) {
+        DPRINTF(HWIPrefetch, "prefetch(addr %#lx) cancelled"
+                " because of %#lx outside of physical memory: %s.\n",
+                mem_req->getVaddr(), mem_req->getPaddr());
+        return;
+    }
+    PacketPtr data_pkt = new Packet(mem_req, MemCmd::ReadReq);
+    DPRINTF(HWIPrefetch, "send prefetch to icache, VA: %#lx, PA: %#lx\n",
+            mem_req->getVaddr(), mem_req->getPaddr());
+    assert(iprefetchPort.sendTimingReq(data_pkt));
+}
+
+void
 Fetch::doSquash(const PCStateBase &new_pc, const DynInstPtr squashInst,
         ThreadID tid)
 {
@@ -1228,10 +1255,6 @@ Fetch::tick()
         usedUpFetchTargets = !dbsp->trySupplyFetchWithTarget(pc[0]->instAddr());
     } else if (isFTBPred()) {
         assert(dbpftb);
-        RequestPtr mem_req = std::make_shared<Request>
-                            (0, 0, Request::INST_FETCH, 0);
-        PacketPtr pkt = new Packet(mem_req, MemCmd::ReadReq);
-        iprefetchPort.sendTimingReq(pkt);
         dbpftb->tick();
         usedUpFetchTargets = !dbpftb->trySupplyFetchWithTarget(pc[0]->instAddr(), currentFetchTargetInLoop);
     }
@@ -1533,6 +1556,11 @@ Fetch::fetch(bool &status_change)
         }
 
         return;
+    }
+
+    // send prefetch request
+    if (iprefetchEnable) {
+        prefetch(tid);
     }
 
     if (isDecoupledFrontend()) {
@@ -2145,6 +2173,27 @@ Fetch::setAllFetchStalls(StallReason stall)
 {
     for (int i = 0; i < stallReason.size(); i++) {
         stallReason[i] = stall;
+    }
+}
+
+void
+Fetch::prefetch(ThreadID tid)
+{
+    Addr prefetchAddr;
+    bool getVAddr = dbpftb->getPrefetchAddr(prefetchAddr);
+    if (getVAddr) {
+        // make req
+        RequestPtr mem_req = std::make_shared<Request>(
+                prefetchAddr, 0, Request::INST_FETCH,
+                0, 0, cpu->thread[tid]->contextId());
+        mem_req->taskId(cpu->taskId());
+        // mmu translation
+        PrefetchTranslation *trans = new PrefetchTranslation(this);
+        cpu->mmu->translateNoBlockedTiming(mem_req, cpu->thread[tid]->getTC(),
+                                           trans, BaseMMU::Execute);
+    }
+    else {
+        DPRINTF(HWIPrefetch, "No valid prefetch req from FSQ.\n");
     }
 }
 

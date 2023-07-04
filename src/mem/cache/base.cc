@@ -2701,7 +2701,8 @@ CpuSidePort::CpuSidePort(const std::string &_name, BaseCache *_cache,
 bool
 BaseCache::CpuIPrefetchSidePort::recvTimingReq(PacketPtr pkt)
 {
-    DPRINTF(HWIPrefetch, "recrive prefetch request.\n");
+    DPRINTF(HWIPrefetch, "receive prefetch addr %#lx request.\n",
+            pkt->getAddr());
     return true;
 }
 

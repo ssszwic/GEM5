@@ -81,6 +81,7 @@ class BaseO3CPU(BaseCPU):
     cacheLoadPorts = Param.Unsigned(200, "Cache Ports. "
           "Constrains loads only.")
 
+    iprefetchEnable = Param.Bool(False, "Enable instruction prefetch")
     decodeToFetchDelay = Param.Cycles(1, "Decode to fetch delay")
     renameToFetchDelay = Param.Cycles(1 ,"Rename to fetch delay")
     iewToFetchDelay = Param.Cycles(1, "Issue/Execute/Writeback to fetch "

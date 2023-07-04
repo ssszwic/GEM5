@@ -152,6 +152,26 @@ class Fetch
         }
     };
 
+    class PrefetchTranslation : public BaseMMU::Translation
+    {
+      protected:
+        Fetch *fetch;
+
+      public:
+        PrefetchTranslation(Fetch *_fetch) : fetch(_fetch) {}
+
+        void markDelayed() {}
+
+        void
+        finish(const Fault &fault, const RequestPtr &req,
+            gem5::ThreadContext *tc, BaseMMU::Mode mode)
+        {
+            assert(mode == BaseMMU::Execute);
+            fetch->finishPrefetchTranslation(fault, req);
+            delete this;
+        }
+    };
+
   private:
     /* Event to delay delivery of a fetch translation result in case of
      * a fault and the nop to carry the fault cannot be generated
@@ -331,6 +351,9 @@ class Fetch
     bool fetchCacheLine(Addr vaddr, ThreadID tid, Addr pc);
     void finishTranslation(const Fault &fault, const RequestPtr &mem_req);
 
+    void finishPrefetchTranslation(const Fault &fault,
+                                   const RequestPtr &mem_req);
+
 
     /** Check if an interrupt is pending and that we need to handle
      */
@@ -430,6 +453,8 @@ class Fetch
     /** Set the reasons of all fetch stalls. */
     void setAllFetchStalls(StallReason stall);
 
+    /** Instruction prefetch process */
+    void prefetch(ThreadID tid);
 
   private:
     /** Pointer to the O3CPU. */
@@ -591,6 +616,9 @@ class Fetch
 
     /** Instruction prefetch port. */
     IPrefetchPort iprefetchPort;
+
+    /** Open instruction prefetch. */
+    bool iprefetchEnable;
 
     /** Set to true if a pipelined I-cache request should be issued. */
     bool issuePipelinedIfetch[MaxThreads];

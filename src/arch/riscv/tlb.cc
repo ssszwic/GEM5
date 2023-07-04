@@ -1572,6 +1572,26 @@ TLB::translateTiming(const RequestPtr &req, ThreadContext *tc,
         translation->markDelayed();
 }
 
+void
+TLB::translateNoBlockedTiming(const RequestPtr &req, ThreadContext *tc,
+                         BaseMMU::Translation *translation,
+                         BaseMMU::Mode mode)
+{
+    bool delayed;
+    Fault fault;
+    assert(translation);
+    // try to lookup latlb
+    Addr vaddr = Addr(sext<VADDR_BITS>(req->getVaddr()));
+    SATP satp = tc->readMiscReg(MISCREG_SATP);
+    TlbEntry *e = lookup(vaddr, satp.asid, mode, false, true);
+    if (e) { // l1 tlb hit
+        // translate only when l1tlb hit, which is no-blocked
+        Fault fault = translate(req, tc, translation, mode, delayed);
+        assert(!delayed);
+    }
+    translation->finish(fault, req, tc, mode);
+}
+
 Fault
 TLB::translateFunctional(const RequestPtr &req, ThreadContext *tc,
                          BaseMMU::Mode mode)

@@ -213,6 +213,7 @@ def config_cache(options, system):
             # IFU.iprefetch_port -> icache.cpu_iprefetch_side
             if options.iprefetch:
                 system.cpu[i].connectIPrefetchPort(icache.cpu_iprefetch_side)
+                system.cpu[i].iprefetchEnable = True
 
             if options.memchecker:
                 # The mem_side ports of the caches haven't been connected yet.

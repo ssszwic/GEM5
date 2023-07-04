@@ -1,15 +1,16 @@
 #include "cpu/pred/ftb/decoupled_bpred.hh"
 
-#include "base/output.hh"
 #include "base/debug_helper.hh"
+#include "base/output.hh"
 #include "cpu/o3/dyn_inst.hh"
 #include "cpu/pred/ftb/stream_common.hh"
-#include "debug/DecoupleBPVerbose.hh"
 #include "debug/DecoupleBPHist.hh"
-#include "debug/Override.hh"
+#include "debug/DecoupleBPVerbose.hh"
 #include "debug/FTB.hh"
 #include "debug/FTBITTAGE.hh"
+#include "debug/HWIPrefetch.hh"
 #include "debug/JumpAheadPredictor.hh"
+#include "debug/Override.hh"
 #include "debug/Profiling.hh"
 #include "sim/core.hh"
 
@@ -29,6 +30,7 @@ DecoupledBPUWithFTB::DecoupledBPUWithFTB(const DecoupledBPUWithFTBParams &p)
       fetchStreamQueueSize(p.fsq_size),
       numBr(p.numBr),
       historyBits(p.maxHistLen),
+      prefetchDisFromIFUptr(p.prefetch_distance),
       uftb(p.uftb),
       ftb(p.ftb),
       tage(p.tage),
@@ -507,6 +509,22 @@ DecoupledBPUWithFTB::BpTrace::BpTrace(FetchStream &stream, const DynInstPtr &ins
 void
 DecoupledBPUWithFTB::tick()
 {
+    // dump fetchStreamQueue
+    // DPRINTF(DecoupleBP, "dump FSQ\n");
+    // for (auto it = fetchStreamQueue.begin();
+    //      it != fetchStreamQueue.end(); ++it) {
+    //     DPRINTFR(DecoupleBP, "FSQ entry: %lu, start pc: %#lx,"
+    //              " predTaken: %u, predEndPC: %#lx, BranchPC: %#lx,"
+    //              " target: %#lx\n",
+    //              it->first,
+    //              it->second.startPC,
+    //              it->second.predTaken,
+    //              it->second.predEndPC,
+    //              it->second.predBranchInfo.pc,
+    //              it->second.predBranchInfo.target
+    //              );
+    // }
+
     dbpFtbStats.fsqEntryDist.sample(fetchStreamQueue.size(), 1);
     if (streamQueueFull()) {
         dbpFtbStats.fsqFullCannotEnq++;
@@ -650,6 +668,21 @@ bool
 DecoupledBPUWithFTB::trySupplyFetchWithTarget(Addr fetch_demand_pc, bool &fetch_target_in_loop)
 {
     return fetchTargetQueue.trySupplyFetchWithTarget(fetch_demand_pc, fetch_target_in_loop);
+}
+
+bool
+DecoupledBPUWithFTB::getPrefetchAddr(Addr &prefetchAddr)
+{
+    auto it = fetchStreamQueue.find(fetchStreamQueue.begin()->first +
+                                    prefetchDisFromIFUptr);
+    if (it != fetchStreamQueue.end() && (it->second.startPC != prefetchAddr)) {
+        prefetchAddr = it->second.startPC;
+        DPRINTF(HWIPrefetch, "get prefetch vaddr %#lx"
+                " from FetchStreamId %lu\n", prefetchAddr, it->first);
+        return true;
+    }
+    DPRINTF(HWIPrefetch, "no valid prefetch vaddr in fetchStreamQueue\n");
+    return false;
 }
 
 std::pair<bool, bool>

@@ -119,6 +119,10 @@ class BaseMMU : public SimObject
     translateTiming(const RequestPtr &req, ThreadContext *tc,
                     Translation *translation, Mode mode);
 
+    virtual void
+    translateNoBlockedTiming(const RequestPtr &req, ThreadContext *tc,
+                             Translation *translation, Mode mode);
+
     virtual Fault
     translateFunctional(const RequestPtr &req, ThreadContext *tc,
                         Mode mode);

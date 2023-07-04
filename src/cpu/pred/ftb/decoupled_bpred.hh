@@ -216,6 +216,9 @@ class DecoupledBPUWithFTB : public BPredUnit
 
     const Addr MaxAddr{~(0ULL)};
 
+    // prefetch distance from IFUptr
+    const uint64_t prefetchDisFromIFUptr{2};
+
     // StreamTAGE *streamTAGE{};
     DefaultFTB *uftb{};
     DefaultFTB *ftb{};
@@ -446,6 +449,9 @@ class DecoupledBPUWithFTB : public BPredUnit
     void tick();
 
     bool trySupplyFetchWithTarget(Addr fetch_demand_pc, bool &fetchTargetInLoop);
+
+    // Get instruction prefetch addr from FSQ.
+    bool getPrefetchAddr(Addr &prefetchAddr);
 
     void squash(const InstSeqNum &squashed_sn, ThreadID tid)
     {
