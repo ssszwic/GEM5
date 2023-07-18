@@ -58,6 +58,7 @@
 #include "enums/Clusivity.hh"
 #include "mem/cache/cache_blk.hh"
 #include "mem/cache/mshr.hh"
+#include "mem/cache/prefetch/base.hh"
 #include "mem/cache/tags/base.hh"
 #include "mem/cache/write_queue_entry.hh"
 #include "mem/request.hh"
@@ -930,7 +931,8 @@ Cache::serviceMSHRTargets(MSHR *mshr, const PacketPtr pkt, CacheBlk *blk)
     }
 
     if (blk && !from_core && from_pref) {
-        blk->setPrefetched();
+        if (!prefetcher->isDecoupledPrefetch())
+            blk->setPrefetched();
     }
 
     if (!mshr->hasLockedRMWReadTarget()) {

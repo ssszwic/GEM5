@@ -36,7 +36,8 @@ SimObject('Prefetcher.py', sim_objects=[
     'SignaturePathPrefetcherV2', 'AccessMapPatternMatching', 'AMPMPrefetcher',
     'DeltaCorrelatingPredictionTables', 'DCPTPrefetcher',
     'IrregularStreamBufferPrefetcher', 'SlimAMPMPrefetcher',
-    'BOPPrefetcher', 'SBOOEPrefetcher', 'STeMSPrefetcher', 'PIFPrefetcher'])
+    'BOPPrefetcher', 'SBOOEPrefetcher', 'STeMSPrefetcher', 'PIFPrefetcher',
+    'FDIPPrefetcher'])
 
 
 DebugFlag('BOPPrefetcher')
@@ -61,3 +62,4 @@ Source('slim_ampm.cc')
 Source('spatio_temporal_memory_streaming.cc')
 Source('stride.cc')
 Source('tagged.cc')
+Source('fdip.cc')

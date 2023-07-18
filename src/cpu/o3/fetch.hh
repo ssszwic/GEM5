@@ -454,7 +454,7 @@ class Fetch
     void setAllFetchStalls(StallReason stall);
 
     /** Instruction prefetch process */
-    void prefetch(ThreadID tid);
+    void prefetch(ThreadID tid, Addr pc);
 
   private:
     /** Pointer to the O3CPU. */

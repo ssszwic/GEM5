@@ -216,9 +216,6 @@ class DecoupledBPUWithFTB : public BPredUnit
 
     const Addr MaxAddr{~(0ULL)};
 
-    // prefetch distance from IFUptr
-    const uint64_t prefetchDisFromIFUptr{2};
-
     // StreamTAGE *streamTAGE{};
     DefaultFTB *uftb{};
     DefaultFTB *ftb{};
@@ -259,6 +256,15 @@ class DecoupledBPUWithFTB : public BPredUnit
 
     using JAInfo = JumpAheadPredictor::JAInfo;
     JAInfo jaInfo;
+
+    // prefetch offset distance from IFUptr
+    uint64_t prefetchOffset;
+    // prefetch width from IFUptr to PFptr
+    uint64_t prefetchWidth;
+    // prefetch FSQ ID
+    FetchStreamId prefetchID{0};
+    // a flush has occurred, prefetch need to handle
+    bool fsqFlushFlag{true};
 
     void tryEnqFetchStream();
 
@@ -358,7 +364,11 @@ class DecoupledBPUWithFTB : public BPredUnit
             pred.indirectTarget, pred.returnTarget);
     }
 
-    struct DBPFTBStats : public statistics::Group {
+    // Calculate next prefetch addr by a fixed width
+    bool calPrefetchByFixedWidth(Addr &prefetchAddr, bool &flush);
+
+    struct DBPFTBStats : public statistics::Group
+    {
         statistics::Scalar condNum;
         statistics::Scalar uncondNum;
         statistics::Scalar returnNum;
@@ -451,7 +461,9 @@ class DecoupledBPUWithFTB : public BPredUnit
     bool trySupplyFetchWithTarget(Addr fetch_demand_pc, bool &fetchTargetInLoop);
 
     // Get instruction prefetch addr from FSQ.
-    bool getPrefetchAddr(Addr &prefetchAddr);
+    bool getPrefetchAddr(Addr &prefetchAddr, bool &flush);
+
+
 
     void squash(const InstSeqNum &squashed_sn, ThreadID tid)
     {

@@ -43,6 +43,7 @@ from m5.proxy import *
 from m5.objects.ClockedObject import ClockedObject
 from m5.objects.IndexingPolicies import *
 from m5.objects.ReplacementPolicies import *
+from m5.objects.Tags import *
 
 class HWPProbeEvent(object):
     def __init__(self, prefetcher, obj, *listOfNames):
@@ -685,3 +686,22 @@ class MultiPrefetcher(BasePrefetcher):
 
     prefetchers = VectorParam.BasePrefetcher([SMSPrefetcher(), BOPPrefetcher()],
         "Array of prefetchers")
+
+
+class FDIPPrefetcher(BasePrefetcher):
+    type = "FDIPPrefetcher"
+    cxx_class = "gem5::prefetch::FDIPPrefetcher"
+    cxx_header = "mem/cache/prefetch/fdip.hh"
+
+    numPIQEntry = Param.Unsigned(12, "Number of prefetch request entries")
+    numPrefetchBuffer = Param.Unsigned(64,
+                                "Number of cacheline in prefetch buffer")
+    max_used_time = Param.Unsigned(1, "The max used time before move to cache")
+    tags = Param.BaseTags(BaseSetAssoc(), "Tag store")
+    replacement_policy = Param.BaseReplacementPolicy(RandomRP(),
+        "Replacement policy")
+    # tags parameters
+    assoc = Param.Unsigned("Associativity")
+    size = Param.MemorySize("capacity in bytes")
+    # TODO: set latenct
+    tag_latency = Param.Cycles(1, "The tag lookup latency for this cache")

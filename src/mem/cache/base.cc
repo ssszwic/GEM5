@@ -42,8 +42,9 @@
  * @file
  * Definition of BaseCache functions.
  */
-
 #include "mem/cache/base.hh"
+
+#include <cstring>
 
 #include "base/compiler.hh"
 #include "base/logging.hh"
@@ -140,7 +141,6 @@ BaseCache::BaseCache(const BaseCacheParams &p, unsigned blk_size)
         "Compressed cache %s does not have a compression algorithm", name());
     if (compressor)
         compressor->setCache(this);
-
 }
 
 BaseCache::~BaseCache()
@@ -433,6 +433,15 @@ BaseCache::recvTimingReq(PacketPtr pkt)
     CacheBlk *blk = nullptr;
     bool satisfied = false;
     {
+        if (prefetcher)
+        {
+            if (prefetcher->isDecoupledPrefetch())
+            {
+                // when req arrive cache, cancel the same req in piq if exists
+                prefetcher->filterReq(pkt);
+            }
+        }
+
         PacketList writebacks;
         // Note that lat is passed by reference here. The function
         // access() will set the lat value.
@@ -459,9 +468,12 @@ BaseCache::recvTimingReq(PacketPtr pkt)
         ppHit->notify(pkt);
 
         if (prefetcher && blk && blk->wasPrefetched()) {
-            DPRINTF(Cache, "Hit on prefetch for addr %#x (%s)\n",
-                    pkt->getAddr(), pkt->isSecure() ? "s" : "ns");
-            blk->clearPrefetched();
+            if (!prefetcher->isDecoupledPrefetch())
+            {
+                DPRINTF(Cache, "Hit on prefetch for addr %#x (%s)\n",
+                        pkt->getAddr(), pkt->isSecure() ? "s" : "ns");
+                blk->clearPrefetched();
+            }
         }
 
         if (blk && blk->needInvalidate()) {
@@ -579,6 +591,21 @@ BaseCache::recvTimingResp(PacketPtr pkt)
     assert(!mshr->wasWholeLineWrite || pkt->isInvalidate());
 
     CacheBlk *blk = tags->findBlock(pkt->getAddr(), pkt->isSecure());
+
+    // don't fill for fdip prefetch
+    if (pkt->req->isPrefetchReq)
+    {
+        if (prefetcher)
+        {
+            if (prefetcher->isDecoupledPrefetch())
+            {
+                // fdip only prefetch blk that isn't in tags
+                assert(!blk);
+                blk = prefetcher->insertPrefetchData(pkt);
+                is_fill = false;
+            }
+        }
+    }
 
     if (is_fill && !is_error) {
         DPRINTF(Cache, "Block for addr %#llx being updated in Cache\n",
@@ -932,6 +959,13 @@ BaseCache::getNextQueueEntry()
         // If we have a miss queue slot, we can try a prefetch
         PacketPtr pkt = prefetcher->getPacket();
         if (pkt) {
+            if (prefetcher->isDecoupledPrefetch())
+            {
+                // fdip prefetch filter has done when insert piq
+                assert(pkt->req->requestorId() < system->maxRequestors());
+                stats.cmdStats(pkt).mshrMisses[pkt->req->requestorId()]++;
+                return allocateMissBuffer(pkt, curTick(), false);
+            }
             Addr pf_addr = pkt->getBlockAddr(blkSize);
             if (tags->findBlock(pf_addr, pkt->isSecure())) {
                 DPRINTF(HWPrefetch, "Prefetch %#x has hit in cache, "
@@ -1274,6 +1308,53 @@ BaseCache::calculateAccessLatency(const CacheBlk* blk, const uint32_t delay,
     return lat;
 }
 
+CacheBlk*
+BaseCache::fillCacheFromPrefetch(CacheBlk* prefetch_blk, PacketPtr pkt,
+                                 PacketList &writebacks)
+{
+
+    Addr addr = pkt->getAddr();
+    Addr blkAddr = pkt->getBlockAddr(blkSize);
+    CacheBlk* blk = tags->findBlock(addr, pkt->isSecure());
+    bool is_secure = pkt->isSecure();
+    const std::string old_state = (debug::Cache && blk) ? blk->print() : "";
+    const bool has_old_data = blk && blk->isValid();
+    assert(!blk);
+    if (!blk) {
+        // allocateBlock
+        std::vector<CacheBlk*> evict_blks;
+        blk = tags->findVictim(pkt->getAddr(), pkt->isSecure(), 0,
+                        evict_blks);
+        assert(blk);
+        DPRINTF(CacheRepl, "Replacement victim: %s\n", blk->print());
+        assert(handleEvictions(evict_blks, writebacks));
+        tags->insertBlockFromOther(prefetch_blk, blk, addr);
+    }
+    assert(blk->isValid());
+    assert(blk->isSecure() == pkt->isSecure());
+    assert(regenerateBlkAddr(blk) == blkAddr);
+    blk->setCoherenceBits(CacheBlk::ReadableBit);
+    DPRINTF(Cache, "Block addr %#llx (%s) moving from %s to %s\n",
+            addr, is_secure ? "s" : "ns", old_state, blk->print());
+    // update block data
+    DataUpdate data_update(regenerateBlkAddr(blk), blk->isSecure());
+    if (ppDataUpdate->hasListeners()) {
+        if (has_old_data) {
+            data_update.oldData = std::vector<uint64_t>(prefetch_blk->data,
+                prefetch_blk->data + (blkSize / sizeof(uint64_t)));
+        }
+    }
+    memcpy(blk->data, prefetch_blk->data, blkSize);
+    if (ppDataUpdate->hasListeners()) {
+        data_update.newData = std::vector<uint64_t>(blk->data,
+            blk->data + (blkSize / sizeof(uint64_t)));
+        ppDataUpdate->notify(data_update);
+    }
+    blk->setWhenReady(clockEdge(Cycles(0)));
+    prefetcher->invalidatePrefetchBlk(prefetch_blk);
+    return blk;
+}
+
 bool
 BaseCache::access(PacketPtr pkt, CacheBlk *&blk, Cycles &lat,
                   PacketList &writebacks)
@@ -1291,6 +1372,28 @@ BaseCache::access(PacketPtr pkt, CacheBlk *&blk, Cycles &lat,
 
     DPRINTF(Cache, "%s for %s %s\n", __func__, pkt->print(),
             blk ? "hit " + blk->print() : "miss");
+
+    // Access block in the prefetch buffer for fdip prefetch
+    bool move = false;
+    CacheBlk* prefetch_blk;
+    if (prefetcher && !blk)
+    {
+        if (prefetcher->isDecoupledPrefetch())
+        {
+            prefetch_blk = prefetcher->
+                            findPrefetchBuffer(pkt, tag_latency, move);
+            if (prefetch_blk)
+            {
+                DPRINTF(HWIPrefetch, "Hit on prefetch for addr %#x (%s)\n",
+                    pkt->getAddr(), pkt->isSecure() ? "s" : "ns");
+                DPRINTF(Cache, "Hit on prefetch for addr %#x (%s)\n",
+                    pkt->getAddr(), pkt->isSecure() ? "s" : "ns");
+                if (move) {
+                    blk = fillCacheFromPrefetch(prefetch_blk, pkt, writebacks);
+                }
+            }
+        }
+    }
 
     if (pkt->req->isCacheMaintenance()) {
         // A cache maintenance operation is always forwarded to the
@@ -1725,7 +1828,8 @@ BaseCache::invalidateBlock(CacheBlk *blk)
 {
     // If block is still marked as prefetched, then it hasn't been used
     if (blk->wasPrefetched()) {
-        prefetcher->prefetchUnused();
+        if (!prefetcher->isDecoupledPrefetch())
+            prefetcher->prefetchUnused();
     }
 
     // Notify that the data contents for this address are no longer present
@@ -2701,8 +2805,8 @@ CpuSidePort::CpuSidePort(const std::string &_name, BaseCache *_cache,
 bool
 BaseCache::CpuIPrefetchSidePort::recvTimingReq(PacketPtr pkt)
 {
-    DPRINTF(HWIPrefetch, "receive prefetch addr %#lx request.\n",
-            pkt->getAddr());
+    assert(cache->prefetcher->isDecoupledPrefetch());
+    cache->prefetcher->insertPrefetchReq(pkt);
     return true;
 }
 
@@ -2715,7 +2819,7 @@ BaseCache::CpuIPrefetchSidePort::getAddrRanges() const
 BaseCache::
 CpuIPrefetchSidePort::CpuIPrefetchSidePort(const std::string &_name,
                                            BaseCache *_cache)
-    : ResponsePort(_name, _cache)
+    : ResponsePort(_name, _cache), cache(_cache)
 {
 }
 

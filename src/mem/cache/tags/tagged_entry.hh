@@ -105,6 +105,7 @@ class TaggedEntry : public ReplaceableEntry
         _valid = false;
         setTag(MaxAddr);
         clearSecure();
+        used_time = 0;
     }
 
     std::string

@@ -78,6 +78,11 @@ class ReplaceableEntry
     virtual ~ReplaceableEntry() = default;
 
     /**
+     * tag used times, only for prefetch
+    */
+    uint32_t used_time{0};
+
+    /**
      * Replacement data associated to this entry.
      * It must be instantiated by the replacement policy before being used.
      */

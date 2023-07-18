@@ -30,7 +30,6 @@ DecoupledBPUWithFTB::DecoupledBPUWithFTB(const DecoupledBPUWithFTBParams &p)
       fetchStreamQueueSize(p.fsq_size),
       numBr(p.numBr),
       historyBits(p.maxHistLen),
-      prefetchDisFromIFUptr(p.prefetch_distance),
       uftb(p.uftb),
       ftb(p.ftb),
       tage(p.tage),
@@ -40,6 +39,8 @@ DecoupledBPUWithFTB::DecoupledBPUWithFTB(const DecoupledBPUWithFTBParams &p)
       enableDB(p.enableBPDB),
       numStages(p.numStages),
       historyManager(p.numBr),
+      prefetchOffset(p.prefetchOffset),
+      prefetchWidth(p.prefetchWidth),
       dbpFtbStats(this, p.numStages, p.fsq_size)
 {
     if (enableDB) {
@@ -671,19 +672,40 @@ DecoupledBPUWithFTB::trySupplyFetchWithTarget(Addr fetch_demand_pc, bool &fetch_
 }
 
 bool
-DecoupledBPUWithFTB::getPrefetchAddr(Addr &prefetchAddr)
+DecoupledBPUWithFTB::getPrefetchAddr(Addr &prefetchAddr, bool &flush)
 {
-    auto it = fetchStreamQueue.find(fetchStreamQueue.begin()->first +
-                                    prefetchDisFromIFUptr);
-    if (it != fetchStreamQueue.end() && (it->second.startPC != prefetchAddr)) {
+    return calPrefetchByFixedWidth(prefetchAddr, flush);
+}
+
+bool
+DecoupledBPUWithFTB::calPrefetchByFixedWidth(Addr &prefetchAddr, bool &flush)
+{
+    FetchStreamId start = fetchStreamQueue.begin()->first;
+    flush = fsqFlushFlag;
+    if (fsqFlushFlag) {
+        DPRINTF(HWIPrefetch, "reset prefetch ptr because fsq flushed\n");
+        prefetchID = start + prefetchOffset;
+        fsqFlushFlag = false;
+    } else if (prefetchID < start + prefetchOffset)
+    {
+        DPRINTF(HWIPrefetch, "prefetch ptr is behind of prefetch range\n");
+        prefetchID = start + prefetchOffset;
+    } else if (prefetchID > start + prefetchOffset + prefetchWidth)
+    {
+        DPRINTF(HWIPrefetch, "prefetch ptr is ahead of prefetch range\n");
+        return false;
+    }
+    auto it = fetchStreamQueue.find(prefetchID);
+    if (it != fetchStreamQueue.end())
+    {
+        // #TODO: calculate blk addr according to fsq entry
         prefetchAddr = it->second.startPC;
-        DPRINTF(HWIPrefetch, "get prefetch vaddr %#lx"
-                " from FetchStreamId %lu\n", prefetchAddr, it->first);
+        prefetchID++;
         return true;
     }
-    DPRINTF(HWIPrefetch, "no valid prefetch vaddr in fetchStreamQueue\n");
     return false;
 }
+
 
 std::pair<bool, bool>
 DecoupledBPUWithFTB::decoupledPredict(const StaticInstPtr &inst,
@@ -796,6 +818,7 @@ DecoupledBPUWithFTB::controlSquash(unsigned target_id, unsigned stream_id,
                             const InstSeqNum &seq, ThreadID tid,
                             const unsigned &currentLoopIter)
 {
+    fsqFlushFlag = true;
     dbpFtbStats.controlSquash++;
 
     bool is_conditional = static_inst->isCondCtrl();
@@ -960,6 +983,7 @@ DecoupledBPUWithFTB::nonControlSquash(unsigned target_id, unsigned stream_id,
                                const PCStateBase &inst_pc,
                                const InstSeqNum seq, ThreadID tid, const unsigned &currentLoopIter)
 {
+    fsqFlushFlag = true;
     dbpFtbStats.nonControlSquash++;
     DPRINTFV(this->debugFlagOn || ::gem5::debug::DecoupleBP,
             "non control squash: target id: %lu, stream id: %lu, inst_pc: %x, "
@@ -1062,6 +1086,7 @@ DecoupledBPUWithFTB::trapSquash(unsigned target_id, unsigned stream_id,
                          Addr last_committed_pc, const PCStateBase &inst_pc,
                          ThreadID tid, const unsigned &currentLoopIter)
 {
+    fsqFlushFlag = true;
     dbpFtbStats.trapSquash++;
     DPRINTF(DecoupleBP || debugFlagOn,
             "Trap squash: target id: %lu, stream id: %lu, inst_pc: %#lx\n",

@@ -135,6 +135,17 @@ BaseTags::insertBlock(const PacketPtr pkt, CacheBlk *blk)
 }
 
 void
+BaseTags::insertBlockFromOther(const CacheBlk* otherBlk,
+                               CacheBlk *blk, Addr addr)
+{
+    assert(!blk->isValid());
+    blk->insert(extractTag(addr), otherBlk->isSecure(),
+                    otherBlk->getSrcRequestorId(),
+                    otherBlk->getTaskId(),
+                    otherBlk->getXsMetadata());
+}
+
+void
 BaseTags::moveBlock(CacheBlk *src_blk, CacheBlk *dest_blk)
 {
     assert(!dest_blk->isValid());

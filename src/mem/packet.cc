@@ -110,6 +110,9 @@ MemCmd::commandInfo[] =
     /* HardPFReq */
     { {IsRead, IsRequest, IsHWPrefetch, NeedsResponse, FromCache},
             HardPFResp, "HardPFReq" },
+    /* PrefetchFlushReq */
+    { {IsRead, IsRequest, IsHWPrefetch, NeedsResponse, FromCache},
+            HardPFResp, "PrefetchFlushReq" },
     /* SoftPFResp */
     { {IsRead, IsResponse, IsSWPrefetch, HasData}, InvalidCmd, "SoftPFResp" },
     /* HardPFResp */

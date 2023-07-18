@@ -196,7 +196,8 @@ class Queued : public Base
     Queued(const QueuedPrefetcherParams &p);
     virtual ~Queued();
 
-    void notify(const PacketPtr &pkt, const PrefetchInfo &pfi) override;
+    virtual void notify(const PacketPtr &pkt,
+                        const PrefetchInfo &pfi) override;
 
     void insert(const PacketPtr &pkt, PrefetchInfo &new_pfi, int32_t priority);
 

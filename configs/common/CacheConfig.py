@@ -209,11 +209,24 @@ def config_cache(options, system):
             # from the CPU in question
             system.cpu[i].addPrivateSplitL1Caches(icache, dcache,
                                                   iwalkcache, dwalkcache)
-            # Instruction hardware prefetch connection.
-            # IFU.iprefetch_port -> icache.cpu_iprefetch_side
-            if options.iprefetch:
+            if options.l1i_hwp_type == 'FDIPPrefetcher':
                 system.cpu[i].connectIPrefetchPort(icache.cpu_iprefetch_side)
                 system.cpu[i].iprefetchEnable = True
+                system.cpu[i].icache.prefetcher.numPIQEntry = \
+                    options.fdip_piq_num
+                system.cpu[i].icache.prefetcher.numPrefetchBuffer = \
+                    options.fdip_pf_num
+                system.cpu[i].icache.prefetcher.assoc = \
+                    options.fdip_pf_num
+                system.cpu[i].icache.prefetcher.size = \
+                    str(options.fdip_pf_num * system.cache_line_size)
+                system.cpu[i].icache.tag_latency = 1
+                system.cpu[i].icache.mshrs = 3
+                # bpu prefetch
+                system.cpu[i].branchPred.prefetchOffset = \
+                    options.prefetch_offset
+                system.cpu[i].branchPred.prefetchWidth = \
+                    options.prefetch_width
 
             if options.memchecker:
                 # The mem_side ports of the caches haven't been connected yet.

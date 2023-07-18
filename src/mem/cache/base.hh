@@ -513,6 +513,16 @@ class BaseCache : public ClockedObject
                                   const Cycles lookup_lat) const;
 
     /**
+     * Fill cache tags from prefetch block.
+     *
+     * @param prefetch_blk The cache block that was prefetched.
+     * @return The new block in cache.
+     */
+    CacheBlk* fillCacheFromPrefetch(CacheBlk* prefetch_blk,
+                                    PacketPtr pkt, PacketList &writebacks);
+
+
+    /**
      * Does all the processing necessary to perform the provided request.
      * @param pkt The memory request to perform.
      * @param blk The cache block to be updated.
@@ -1205,6 +1215,21 @@ class BaseCache : public ClockedObject
 
     /** Registers probes. */
     void regProbePoints() override;
+
+    bool findMSHRQueue(Addr addr, bool is_secure) const
+    {
+        return (bool)mshrQueue.findMatch(addr, is_secure);
+    }
+
+    bool findWriteQueue(Addr addr, bool is_secure) const
+    {
+        return (bool)writeBuffer.findMatch(addr, is_secure);
+    }
+
+    bool findTags(Addr addr, bool is_secure) const
+    {
+        return (bool)tags->findBlock(addr, is_secure);
+    }
 
   public:
     BaseCache(const BaseCacheParams &p, unsigned blk_size);

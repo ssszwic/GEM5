@@ -966,7 +966,7 @@ Fetch::finishPrefetchTranslation(const Fault &fault, const RequestPtr &mem_req)
                 mem_req->getVaddr(), mem_req->getPaddr());
         return;
     }
-    PacketPtr data_pkt = new Packet(mem_req, MemCmd::ReadReq);
+    PacketPtr data_pkt = new Packet(mem_req, MemCmd::HardPFReq);
     DPRINTF(HWIPrefetch, "send prefetch to icache, VA: %#lx, PA: %#lx\n",
             mem_req->getVaddr(), mem_req->getPaddr());
     assert(iprefetchPort.sendTimingReq(data_pkt));
@@ -1558,11 +1558,6 @@ Fetch::fetch(bool &status_change)
         return;
     }
 
-    // send prefetch request
-    if (iprefetchEnable) {
-        prefetch(tid);
-    }
-
     if (isDecoupledFrontend()) {
         if (isStreamPred()) {
             if (!dbsp->fetchTargetAvailable()) {
@@ -1582,6 +1577,12 @@ Fetch::fetch(bool &status_change)
 
     // The current PC.
     PCStateBase &this_pc = *pc[tid];
+
+    // send prefetch request
+    // TODO: Where to put it
+    if (iprefetchEnable) {
+        prefetch(tid, this_pc.instAddr());
+    }
 
     Addr pc_offset = fetchOffset[tid];
     Addr fetch_addr = (this_pc.instAddr() + pc_offset) & decoder[tid]->pcMask();
@@ -2177,15 +2178,28 @@ Fetch::setAllFetchStalls(StallReason stall)
 }
 
 void
-Fetch::prefetch(ThreadID tid)
+Fetch::prefetch(ThreadID tid, Addr pc)
 {
     Addr prefetchAddr;
-    bool getVAddr = dbpftb->getPrefetchAddr(prefetchAddr);
-    if (getVAddr) {
+    bool flushPIQ;
+    bool getVAddr = dbpftb->getPrefetchAddr(prefetchAddr, flushPIQ);
+    if (flushPIQ) {
+        // make flush req
+        RequestPtr mem_req = std::make_shared<Request>(
+                prefetchAddr, cacheBlkSize, Request::INST_FETCH,
+                cpu->instRequestorId(), pc, cpu->thread[tid]->contextId());
+        mem_req->isPrefetchReq = true;
+        mem_req->taskId(cpu->taskId());
+        // flush req just ask prefetcher to flush piq
+        PacketPtr data_pkt = new Packet(mem_req, MemCmd::PrefetchFlushReq);
+        DPRINTF(HWIPrefetch, "send prefetch flush req to icache\n");
+        assert(iprefetchPort.sendTimingReq(data_pkt));
+    } else if (getVAddr) {
         // make req
         RequestPtr mem_req = std::make_shared<Request>(
-                prefetchAddr, 0, Request::INST_FETCH,
-                0, 0, cpu->thread[tid]->contextId());
+                prefetchAddr, cacheBlkSize, Request::INST_FETCH,
+                cpu->instRequestorId(), pc, cpu->thread[tid]->contextId());
+        mem_req->isPrefetchReq = true;
         mem_req->taskId(cpu->taskId());
         // mmu translation
         PrefetchTranslation *trans = new PrefetchTranslation(this);

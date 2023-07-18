@@ -135,6 +135,10 @@ Base::StatGroup::StatGroup(statistics::Group *parent)
         "accuracy of the prefetcher"),
     ADD_STAT(coverage, statistics::units::Count::get(),
     "coverage brought by this prefetcher"),
+    ADD_STAT(pfHitInPIQ, statistics::units::Count::get(),
+        "number of prefetches hitting in PIQ"),
+    ADD_STAT(pfHitInPF, statistics::units::Count::get(),
+        "number of prefetches hitting in PF"),
     ADD_STAT(pfHitInCache, statistics::units::Count::get(),
         "number of prefetches hitting in cache"),
     ADD_STAT(pfHitInMSHR, statistics::units::Count::get(),
@@ -142,7 +146,13 @@ Base::StatGroup::StatGroup(statistics::Group *parent)
     ADD_STAT(pfHitInWB, statistics::units::Count::get(),
         "number of prefetches hit in the Write Buffer"),
     ADD_STAT(pfLate, statistics::units::Count::get(),
-        "number of late prefetches (hitting in cache, MSHR or WB)")
+        "number of late prefetches (hitting in cache, MSHR or WB)"),
+    ADD_STAT(piqInsert, statistics::units::Count::get(),
+        "number of times insert piq"),
+    ADD_STAT(piqFull, statistics::units::Count::get(),
+        "number of times the piq is flushed"),
+    ADD_STAT(piqLate, statistics::units::Count::get(),
+        "number of times the piq is too late")
 {
     using namespace statistics;
 
@@ -242,6 +252,11 @@ Base::pageIthBlockAddress(Addr page, uint32_t blockIndex) const
 void
 Base::probeNotify(const PacketPtr &pkt, bool miss)
 {
+    if (isDecoupledPrefetch())
+    {
+        return;
+    }
+
     // Don't notify prefetcher on SWPrefetch, cache maintenance
     // operations or for writes that we are coaslescing.
     if (pkt->cmd.isSWPrefetch()) return;

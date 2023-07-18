@@ -205,6 +205,26 @@ class BaseSetAssoc : public BaseTags
         replacementPolicy->reset(blk->replacementData, pkt);
     }
 
+    /**
+     * Insert the new block into the cache and update replacement
+     * data from other cacheling.
+     *
+     * @param pkt Packet holding the address to update
+     * @param blk The block to update.
+     */
+    void insertBlockFromOther(const CacheBlk* otherBlk,
+                              CacheBlk *blk, Addr addr) override
+    {
+        // Insert block
+        BaseTags::insertBlockFromOther(otherBlk, blk, addr);
+
+        // Increment tag counter
+        stats.tagsInUse++;
+
+        // Update replacement policy
+        replacementPolicy->reset(blk->replacementData);
+    }
+
     void moveBlock(CacheBlk *src_blk, CacheBlk *dest_blk) override;
 
     /**

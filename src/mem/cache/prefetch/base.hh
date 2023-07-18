@@ -344,6 +344,12 @@ class Base : public ClockedObject
         statistics::Formula accuracy;
         statistics::Formula coverage;
 
+        /** The number of times a HW-prefetch hits in PIQ. */
+        statistics::Scalar pfHitInPIQ;
+
+        /** The number of times a HW-prefetch hits in PF. */
+        statistics::Scalar pfHitInPF;
+
         /** The number of times a HW-prefetch hits in cache. */
         statistics::Scalar pfHitInCache;
 
@@ -357,6 +363,21 @@ class Base : public ClockedObject
         /** The number of times a HW-prefetch is late
          * (hit in cache, MSHR, WB). */
         statistics::Formula pfLate;
+
+        /**
+         * The number of times insert piq. */
+        statistics::Scalar piqInsert;
+        /**
+         * The number of times the piq is flushed
+         * because of limited capacity. */
+        statistics::Scalar piqFull;
+        /**
+         * The number of times the req in piq is too late.
+         * That is, when the req arrives at the cache,
+         * the request is still not issued. */
+        statistics::Scalar piqLate;
+
+
     } prefetchStats;
 
     /** Total prefetches issued */
@@ -387,6 +408,43 @@ class Base : public ClockedObject
 
     virtual Tick nextPrefetchReadyTime() const = 0;
 
+    /** Whether prefetch type is based on decoupled frontend struct. */
+    virtual bool isDecoupledPrefetch()
+    {
+        return false;
+    }
+
+    virtual void insertPrefetchReq(PacketPtr pkt)
+    {
+        panic("This function must be overrided!\n");
+    }
+
+    virtual CacheBlk* insertPrefetchData(PacketPtr pkt)
+    {
+        panic("This function must be overrided!\n");
+    }
+
+    virtual CacheBlk* findPrefetchBuffer(const PacketPtr pkt,
+                                    Cycles &lat, bool &move)
+    {
+        panic("This function must be overrided!\n");
+    }
+
+    virtual void invalidatePrefetchBlk(CacheBlk* blk)
+    {
+        panic("This function must be overrided!\n");
+    }
+
+    virtual void filterReq(PacketPtr pkt)
+    {
+        panic("This function must be overrided!\n");
+    }
+
+    virtual Addr regenerateBlkAddr(CacheBlk* blk)
+    {
+        panic("This function must be overrided!\n");
+    }
+
     void
     prefetchUnused()
     {
@@ -397,6 +455,18 @@ class Base : public ClockedObject
     incrDemandMhsrMisses()
     {
         prefetchStats.demandMshrMisses++;
+    }
+
+    void
+    pfHitInPIQ()
+    {
+        prefetchStats.pfHitInPIQ++;
+    }
+
+    void
+    pfHitInPF()
+    {
+        prefetchStats.pfHitInPF++;
     }
 
     void

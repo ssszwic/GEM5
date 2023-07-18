@@ -949,4 +949,5 @@ class DecoupledBPUWithFTB(BranchPredictor):
     enableLoopPredictor = Param.Bool(False, "Use loop predictor to predict loop exit")
     enableJumpAheadPredictor = Param.Bool(False, "Use jump ahead predictor to skip no-need-to-predict blocks")
 
-    prefetch_distance = Param.Unsigned(2, "Prefetch distance from IFUptr")
+    prefetchOffset = Param.Unsigned(4, "Prefetch offset distance from IFUptr")
+    prefetchWidth = Param.Unsigned(8, "Prefetch width from IFUptr to PFptr")

@@ -284,8 +284,6 @@ def addCommonOptions(parser):
                         type of hardware prefetcher to use with the L2 cache.
                         (if not set, use the default prefetcher of
                         the selected cache)""")
-    # temp
-    parser.add_argument("--iprefetch", action="store_true")
     # end
     parser.add_argument("--checker", action="store_true")
     parser.add_argument("--cpu-clock", action="store", type=str,
@@ -466,6 +464,16 @@ def addCommonOptions(parser):
 
     parser.add_argument("--dump-loop-pred", action='store_true', default=False,
             help="Dump loop predictor logs at exit")
+
+    # fdip prefetch params
+    parser.add_argument("--fdip-piq-num", default=12, type=int,
+                        help="Number of PIQ for fdip")
+    parser.add_argument("--fdip-pf-num", default=64, type=int,
+                        help="Number of prefetch buffer for fdip")
+    parser.add_argument("--prefetch-offset", default=4, type=int,
+                        help="Prefetch offset distance from IFUptr")
+    parser.add_argument("--prefetch-width", default=8, type=int,
+                        help="Prefetch width from IFUptr to PFptr")
 
 
 def addSEOptions(parser):
