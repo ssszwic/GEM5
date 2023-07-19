@@ -265,6 +265,9 @@ class DecoupledBPUWithFTB : public BPredUnit
     FetchStreamId prefetchID{0};
     // a flush has occurred, prefetch need to handle
     bool fsqFlushFlag{true};
+    // last prefetch req ID
+    // All prefetch addr is aligned, so '0x01' dosen't equal any addr.
+    Addr lastPrefetchAlignAddr{0x01};
 
     void tryEnqFetchStream();
 

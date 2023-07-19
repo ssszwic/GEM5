@@ -699,9 +699,31 @@ DecoupledBPUWithFTB::calPrefetchByFixedWidth(Addr &prefetchAddr, bool &flush)
     if (it != fetchStreamQueue.end())
     {
         // #TODO: calculate blk addr according to fsq entry
-        prefetchAddr = it->second.startPC;
-        prefetchID++;
-        return true;
+        Addr startPC = alignToCacheLine(it->second.startPC);
+        Addr controlPC = alignToCacheLine(it->second.getControlPC());
+        // The FSQ has a control pc which will taken and
+        // the cacheline controlPC in is different from startPC.
+        // For such an instruction, two prefetch requests are sent.
+        bool isSpecialFSQ = it->second.getTaken() && startPC != controlPC;
+        if (startPC == lastPrefetchAlignAddr) {
+            prefetchID++;
+            if (isSpecialFSQ) {
+                prefetchAddr = controlPC;
+                lastPrefetchAlignAddr = prefetchAddr;
+                DPRINTF(HWIPrefetch, "send a additional request "
+                        "because of special FSQ.\n");
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            prefetchAddr = startPC;
+            lastPrefetchAlignAddr = prefetchAddr;
+            if (!isSpecialFSQ) {
+                prefetchID++;
+            }
+            return true;
+        }
     }
     return false;
 }
