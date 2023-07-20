@@ -213,10 +213,11 @@ class BaseSetAssoc : public BaseTags
      * @param blk The block to update.
      */
     void insertBlockFromOther(const CacheBlk* otherBlk,
-                              CacheBlk *blk, Addr addr) override
+                              CacheBlk *blk, Addr addr,
+                              RequestorID requestor_id) override
     {
         // Insert block
-        BaseTags::insertBlockFromOther(otherBlk, blk, addr);
+        BaseTags::insertBlockFromOther(otherBlk, blk, addr, requestor_id);
 
         // Increment tag counter
         stats.tagsInUse++;

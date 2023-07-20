@@ -1315,21 +1315,19 @@ BaseCache::fillCacheFromPrefetch(CacheBlk* prefetch_blk, PacketPtr pkt,
 
     Addr addr = pkt->getAddr();
     Addr blkAddr = pkt->getBlockAddr(blkSize);
-    CacheBlk* blk = tags->findBlock(addr, pkt->isSecure());
     bool is_secure = pkt->isSecure();
-    const std::string old_state = (debug::Cache && blk) ? blk->print() : "";
-    const bool has_old_data = blk && blk->isValid();
-    assert(!blk);
-    if (!blk) {
-        // allocateBlock
-        std::vector<CacheBlk*> evict_blks;
-        blk = tags->findVictim(pkt->getAddr(), pkt->isSecure(), 0,
-                        evict_blks);
-        assert(blk);
-        DPRINTF(CacheRepl, "Replacement victim: %s\n", blk->print());
-        assert(handleEvictions(evict_blks, writebacks));
-        tags->insertBlockFromOther(prefetch_blk, blk, addr);
-    }
+    const std::string old_state = "";
+
+    // allocateBlock
+    std::vector<CacheBlk*> evict_blks;
+    CacheBlk* blk = tags->findVictim(pkt->getAddr(), pkt->isSecure(), 0,
+                    evict_blks);
+    assert(blk);
+    DPRINTF(CacheRepl, "Replacement victim: %s\n", blk->print());
+    assert(handleEvictions(evict_blks, writebacks));
+    tags->insertBlockFromOther(prefetch_blk, blk, addr,
+                               pkt->req->requestorId());
+
     assert(blk->isValid());
     assert(blk->isSecure() == pkt->isSecure());
     assert(regenerateBlkAddr(blk) == blkAddr);
@@ -1338,12 +1336,7 @@ BaseCache::fillCacheFromPrefetch(CacheBlk* prefetch_blk, PacketPtr pkt,
             addr, is_secure ? "s" : "ns", old_state, blk->print());
     // update block data
     DataUpdate data_update(regenerateBlkAddr(blk), blk->isSecure());
-    if (ppDataUpdate->hasListeners()) {
-        if (has_old_data) {
-            data_update.oldData = std::vector<uint64_t>(prefetch_blk->data,
-                prefetch_blk->data + (blkSize / sizeof(uint64_t)));
-        }
-    }
+
     memcpy(blk->data, prefetch_blk->data, blkSize);
     if (ppDataUpdate->hasListeners()) {
         data_update.newData = std::vector<uint64_t>(blk->data,

@@ -136,13 +136,22 @@ BaseTags::insertBlock(const PacketPtr pkt, CacheBlk *blk)
 
 void
 BaseTags::insertBlockFromOther(const CacheBlk* otherBlk,
-                               CacheBlk *blk, Addr addr)
+                               CacheBlk *blk, Addr addr,
+                               RequestorID requestor_id)
 {
     assert(!blk->isValid());
+
+    assert(requestor_id < system->maxRequestors());
+    stats.occupancies[requestor_id]++;
+
     blk->insert(extractTag(addr), otherBlk->isSecure(),
                     otherBlk->getSrcRequestorId(),
                     otherBlk->getTaskId(),
                     otherBlk->getXsMetadata());
+
+    // We only need to write into one tag and one data block.
+    stats.tagAccesses += 1;
+    stats.dataAccesses += 1;
 }
 
 void

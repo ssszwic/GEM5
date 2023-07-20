@@ -318,7 +318,8 @@ class BaseTags : public ClockedObject
      * @param blk The block to update.
      */
     virtual void insertBlockFromOther(const CacheBlk* otherBlk,
-                                      CacheBlk *blk, Addr addr);
+                                      CacheBlk *blk, Addr addr,
+                                      RequestorID requestor_id);
 
     /**
      * Move a block's metadata to another location decided by the replacement
