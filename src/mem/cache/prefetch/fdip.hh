@@ -78,9 +78,13 @@ class FDIPPrefetcher : public Base
 
             PacketPtr pkt;
 
-            PIQEntry(PacketPtr _pkt)
+            /** Time when this prefetch becomes ready */
+            Tick tick;
+
+            PIQEntry(PacketPtr _pkt, Tick _tick)
             {
                 pkt = _pkt;
+                tick = _tick;
             }
         };
 
@@ -89,6 +93,7 @@ class FDIPPrefetcher : public Base
         uint64_t numPIQEntry;
         std::list<PIQEntry> piq;
         uint32_t max_used_time;
+        Cycles piq_latency{0};
 
     public:
         FDIPPrefetcher(const FDIPPrefetcherParams &p);

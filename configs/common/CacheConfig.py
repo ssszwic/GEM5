@@ -220,6 +220,8 @@ def config_cache(options, system):
                     options.fdip_pf_num
                 system.cpu[i].icache.prefetcher.size = \
                     str(options.fdip_pf_num * system.cache_line_size)
+                system.cpu[i].icache.prefetcher.max_used_time = \
+                    options.max_used_time
                 system.cpu[i].icache.tag_latency = 1
                 system.cpu[i].icache.mshrs = 3
                 # bpu prefetch

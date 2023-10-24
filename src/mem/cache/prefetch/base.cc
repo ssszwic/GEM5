@@ -135,6 +135,10 @@ Base::StatGroup::StatGroup(statistics::Group *parent)
         "accuracy of the prefetcher"),
     ADD_STAT(coverage, statistics::units::Count::get(),
     "coverage brought by this prefetcher"),
+    ADD_STAT(accuracyFinal, statistics::units::Count::get(),
+        "accuracy of the prefetcher excluding fetchCatchPrefetch"),
+    ADD_STAT(coverageFinal, statistics::units::Count::get(),
+    "coverage brought by this prefetcher excluding fetchCatchPrefetch"),
     ADD_STAT(pfHitInPIQ, statistics::units::Count::get(),
         "number of prefetches hitting in PIQ"),
     ADD_STAT(pfHitInPF, statistics::units::Count::get(),
@@ -147,12 +151,34 @@ Base::StatGroup::StatGroup(statistics::Group *parent)
         "number of prefetches hit in the Write Buffer"),
     ADD_STAT(pfLate, statistics::units::Count::get(),
         "number of late prefetches (hitting in cache, MSHR or WB)"),
+    ADD_STAT(reqHitInPIQ, statistics::units::Count::get(),
+        "number of prefetch req hitting in PIQ"),
+    ADD_STAT(reqHitInPF, statistics::units::Count::get(),
+        "number of prefetch req hitting in PF"),
+    ADD_STAT(reqHitInCache, statistics::units::Count::get(),
+        "number of prefetch req hitting in cache"),
+    ADD_STAT(reqHitInMSHR, statistics::units::Count::get(),
+        "number of prefetch req hitting in a MSHR"),
+    ADD_STAT(reqHitInWB, statistics::units::Count::get(),
+        "number of prefetch req hit in the Write Buffer"),
+    ADD_STAT(reqFilter, statistics::units::Count::get(),
+        "number of filterd prefetches (hitting in cache, MSHR, WB, PIQ, PF)"),
+    ADD_STAT(piqReceive, statistics::units::Count::get(),
+        "number of receive prefetch request"),
     ADD_STAT(piqInsert, statistics::units::Count::get(),
         "number of times insert piq"),
     ADD_STAT(piqFull, statistics::units::Count::get(),
         "number of times the piq is flushed"),
     ADD_STAT(piqLate, statistics::units::Count::get(),
-        "number of times the piq is too late")
+        "number of times the piq is too late"),
+    ADD_STAT(piqFlush, statistics::units::Count::get(),
+        "number of times the piq flushed"),
+    ADD_STAT(prefetchCatchFetch, statistics::units::Count::get(),
+        "number of times the prefetch catch up fetch"),
+    ADD_STAT(fetchCatchPrefetch, statistics::units::Count::get(),
+        "number of times the fetch catch up prefetch"),
+    ADD_STAT(fetchCatchPrefetchRatio, statistics::units::Count::get(),
+        "ratio of fetchCatchPrefetch to pfIssued")
 {
     using namespace statistics;
 
@@ -164,7 +190,21 @@ Base::StatGroup::StatGroup(statistics::Group *parent)
     coverage.flags(total);
     coverage = pfUseful / (pfUseful + demandMshrMisses);
 
+    accuracyFinal.flags(total);
+    accuracyFinal = (pfUseful - fetchCatchPrefetch) /
+               (pfIssued - fetchCatchPrefetch);
+
+    coverageFinal.flags(total);
+    coverageFinal = (pfUseful - fetchCatchPrefetch) /
+               (pfUseful + demandMshrMisses - fetchCatchPrefetch);
+
+    fetchCatchPrefetchRatio.flags(total);
+    fetchCatchPrefetchRatio = fetchCatchPrefetch / pfIssued;
+
     pfLate = pfHitInCache + pfHitInMSHR + pfHitInWB;
+
+    reqFilter = reqHitInCache + reqHitInMSHR + reqHitInWB +
+                reqHitInPIQ + reqHitInPF;
 }
 
 bool

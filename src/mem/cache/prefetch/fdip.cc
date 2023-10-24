@@ -70,7 +70,8 @@ FDIPPrefetcher::FDIPPrefetcher(const FDIPPrefetcherParams &p)
   : Base(p),
     tags(p.tags),
     numPIQEntry(p.numPIQEntry),
-    max_used_time(p.max_used_time)
+    max_used_time(p.max_used_time),
+    piq_latency(p.piq_latency)
 {
     tags->tagsInit();
 }
@@ -85,7 +86,7 @@ FDIPPrefetcher::insertPrefetchReq(PacketPtr pkt)
         delete pkt;
         return;
     }
-
+    prefetchStats.piqReceive++;
     assert(piq.size() <= numPIQEntry);
     // filter
     bool delate = filter(pkt);
@@ -95,7 +96,7 @@ FDIPPrefetcher::insertPrefetchReq(PacketPtr pkt)
         return;
     }
     prefetchStats.piqInsert++;
-    PIQEntry entry = PIQEntry(pkt);
+    PIQEntry entry = PIQEntry(pkt, curTick() + cyclesToTicks(piq_latency));
     DPRINTF(HWIPrefetch, "insert prefetch req %#lx\n",
                         pkt->getBlockAddr(blkSize));
     if (piq.size() == numPIQEntry) {
@@ -142,7 +143,7 @@ FDIPPrefetcher::insertPrefetchData(PacketPtr pkt)
         DPRINTF(HWIPrefetch, "flush prefetch blk %#lx "
             "because pf is full.\n", evict_blks[0]->getTag());
         if (evict_blks[0]->used_time == 0) {
-            prefetchStats.pfUnused++;
+            prefetchUnused();
         }
         tags->invalidate(victim);
     }
@@ -150,6 +151,7 @@ FDIPPrefetcher::insertPrefetchData(PacketPtr pkt)
     tags->insertBlock(pkt, victim);
     pkt->writeDataToBlock(victim->data, blkSize);
     victim->setWhenReady(clockEdge(Cycles(1)));
+    victim->setCoherenceBits(CacheBlk::ReadableBit);
     DPRINTF(HWIPrefetch, "insert prefetch blk %#lx\n",
             pkt->getBlockAddr(blkSize));
     return victim;
@@ -173,7 +175,7 @@ FDIPPrefetcher::getPacket()
 Tick
 FDIPPrefetcher::nextPrefetchReadyTime() const
 {
-    return Cycles(1);
+    return piq.empty() ? MaxTick : piq.front().tick;
 }
 
 
@@ -186,7 +188,7 @@ FDIPPrefetcher::findPrefetchBuffer(const PacketPtr pkt,
     if (blk)
     {
         if (blk->used_time == 0) {
-            prefetchStats.pfUseful++;
+            prefetchUsed();
         }
         blk->used_time++;
         move = (blk->used_time == max_used_time) ? true : false;
@@ -210,23 +212,23 @@ FDIPPrefetcher::filter(const PacketPtr pkt)
     if (findPIQ(blk_addr)) {
         DPRINTF(HWPrefetch, "Prefetch %#x has hit in piq, "
                 "dropped.\n", blk_addr);
-        pfHitInPIQ();
+        reqHitInPIQ();
     } else if (tags->findBlock(blk_addr, pkt->isSecure())) {
         DPRINTF(HWPrefetch, "Prefetch %#x has hit in PF, "
                 "dropped.\n", blk_addr);
-        pfHitInPF();
+        reqHitInPF();
     } else if (cache->findTags(blk_addr, pkt->isSecure())) {
         DPRINTF(HWPrefetch, "Prefetch %#x has hit in cache, "
                 "dropped.\n", blk_addr);
-        pfHitInCache();
+        reqHitInCache();
     } else if (cache->findMSHRQueue(blk_addr, pkt->isSecure())) {
         DPRINTF(HWPrefetch, "Prefetch %#x has hit in a MSHR, "
                 "dropped.\n", blk_addr);
-        pfHitInMSHR();
+        reqHitInMSHR();
     } else if (cache->findWriteQueue(blk_addr, pkt->isSecure())) {
         DPRINTF(HWPrefetch, "Prefetch %#x has hit in the "
                 "Write Buffer, dropped.\n", blk_addr);
-        pfHitInWB();
+        reqHitInWB();
     } else {
         delate = false;
     }
@@ -250,6 +252,7 @@ FDIPPrefetcher::findPIQ(Addr blk_addr)
 void
 FDIPPrefetcher::flushPIQ()
 {
+    piqFlush();
     for (auto iter = piq.begin(); iter != piq.end(); iter++)
     {
         delete iter->pkt;

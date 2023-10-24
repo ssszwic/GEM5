@@ -455,7 +455,15 @@ class DecoupledBPUWithFTB : public BPredUnit
         statistics::Distribution predJASkippedBlockNum;
         statistics::Distribution commitJASkippedBlockNum;
 
-        DBPFTBStats(statistics::Group* parent, unsigned numStages, unsigned fsqSize);
+        /** Distribution of distance of PFptr and IFUptr. */
+        statistics::Distribution PFptrIFUptrDist;
+        /** Distribution of distance of PFptr and BPUptr. */
+        statistics::Distribution PFptrBPUptrDist;
+        /** Distribution of distance of IFUptr and BPUptr. */
+        statistics::Distribution IFUptrBPUptrDist;
+
+        DBPFTBStats(statistics::Group* parent, unsigned numStages,
+                    unsigned fsqSize);
     } dbpFtbStats;
 
   public:

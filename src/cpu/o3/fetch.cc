@@ -240,7 +240,11 @@ Fetch::FetchStatGroup::FetchStatGroup(CPU *cpu, Fetch *fetch)
     ADD_STAT(rate, statistics::units::Rate<
                     statistics::units::Count, statistics::units::Cycle>::get(),
              "Number of inst fetches per cycle",
-             insts / cpu->baseStats.numCycles)
+             insts / cpu->baseStats.numCycles),
+    ADD_STAT(PFptrIFUptrDist, statistics::units::Count::get(),
+             "Distribution of distance of PFptr and IFUptr"),
+    ADD_STAT(PFptrBPUptrDist, statistics::units::Count::get(),
+             "Distribution of distance of PFptr and BPUptr"),
 {
         icacheStallCycles
             .prereq(icacheStallCycles);
@@ -1163,6 +1167,12 @@ Fetch::tick()
         fetch(status_change);
     }
 
+    // send prefetch request
+    // TODO: Where to put it
+    if (iprefetchEnable) {
+        prefetch(0, 0);
+    }
+
     toDecode->fetchStallReason = stallReason;
 
     // Record number of instructions fetched this cycle for distribution.
@@ -1577,12 +1587,6 @@ Fetch::fetch(bool &status_change)
 
     // The current PC.
     PCStateBase &this_pc = *pc[tid];
-
-    // send prefetch request
-    // TODO: Where to put it
-    if (iprefetchEnable) {
-        prefetch(tid, this_pc.instAddr());
-    }
 
     Addr pc_offset = fetchOffset[tid];
     Addr fetch_addr = (this_pc.instAddr() + pc_offset) & decoder[tid]->pcMask();

@@ -460,6 +460,8 @@ class MSHR : public QueueEntry, public Printable
      */
     TargetList extractServiceableTargets(PacketPtr pkt);
 
+    TargetList getServiceableTargets(PacketPtr pkt);
+
     /**
      * Returns true if there are targets left.
      * @return true if there are targets

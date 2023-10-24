@@ -481,6 +481,12 @@ DecoupledBPUWithFTB::DBPFTBStats::DBPFTBStats(statistics::Group* parent, unsigne
     ADD_STAT(commitTrapSquashedOnJaHitBlocks, statistics::units::Count::get(), "total number of trap squashes on ja hit committed blocks"),
     ADD_STAT(predJASkippedBlockNum, statistics::units::Count::get(), "distribution of ja skipped block numbers at pred"),
     ADD_STAT(commitJASkippedBlockNum, statistics::units::Count::get(), "distribution of ja skipped block numbers at commit")
+    ADD_STAT(PFptrIFUptrDist, statistics::units::Count::get(),
+             "distribution of distance of PFptr and IFUptr")
+    ADD_STAT(PFptrBPUptrDist, statistics::units::Count::get(),
+             "distribution of distance of PFptr and BPUptr")
+    ADD_STAT(IFUptrBPUptrDist, statistics::units::Count::get(),
+             "distribution of distance of IFUptr and BPUptr")
 {
     predsOfEachStage.init(numStages);
     commitPredsFromEachStage.init(numStages+1);
@@ -491,6 +497,9 @@ DecoupledBPUWithFTB::DBPFTBStats::DBPFTBStats(statistics::Group* parent, unsigne
     commitFsqEntryFetchedInsts.init(0, 16, 1);
     predJASkippedBlockNum.init(0, 16, 1);
     commitJASkippedBlockNum.init(0, 16, 1);
+    PFptrIFUptrDist.init(0, fetchStreamQueueSize, 1);
+    PFptrBPUptrDist.init(0, fetchStreamQueueSize, 1);
+    IFUptrBPUptrDist.init(0, fetchStreamQueueSize, 1);
 }
 
 DecoupledBPUWithFTB::BpTrace::BpTrace(FetchStream &stream, const DynInstPtr &inst, bool mispred)
@@ -674,27 +683,40 @@ DecoupledBPUWithFTB::trySupplyFetchWithTarget(Addr fetch_demand_pc, bool &fetch_
 bool
 DecoupledBPUWithFTB::getPrefetchAddr(Addr &prefetchAddr, bool &flush)
 {
+    // FetchStreamId IFUptr = fetchTargetQueue.getSupplyingStreamId();
+    // FetchStreamId BPUptr =
+
+    // dbpFtbStats.PFptrIFUptrDist.sample(, 1);
     return calPrefetchByFixedWidth(prefetchAddr, flush);
 }
 
 bool
 DecoupledBPUWithFTB::calPrefetchByFixedWidth(Addr &prefetchAddr, bool &flush)
 {
-    FetchStreamId start = fetchStreamQueue.begin()->first;
+    FetchStreamId start = fetchTargetQueue.getSupplyingStreamId();
     flush = fsqFlushFlag;
     if (fsqFlushFlag) {
-        DPRINTF(HWIPrefetch, "reset prefetch ptr because fsq flushed\n");
         prefetchID = start + prefetchOffset;
         fsqFlushFlag = false;
+        DPRINTF(HWIPrefetch, "IFUptr: %lu PFptr: %lu after flush\n",
+                start, prefetchID);
+        return false;
     } else if (prefetchID < start + prefetchOffset)
     {
-        DPRINTF(HWIPrefetch, "prefetch ptr is behind of prefetch range\n");
         prefetchID = start + prefetchOffset;
+        DPRINTF(HWIPrefetch, "IFUptr: %lu PFptr: %lu after behind.\n",
+                start, prefetchID);
     } else if (prefetchID > start + prefetchOffset + prefetchWidth)
     {
-        DPRINTF(HWIPrefetch, "prefetch ptr is ahead of prefetch range\n");
+        DPRINTF(HWIPrefetch, "IFUptr: %lu PFptr: %lu after ahead.\n",
+                start, prefetchID);
+        DPRINTF(HWIPrefetch, "no fsq(ahead range), next prefetch: %lu\n",
+                prefetchID);
         return false;
+    } else {
+        DPRINTF(HWIPrefetch, "IFUptr: %lu PFptr: %lu\n", start, prefetchID);
     }
+
     auto it = fetchStreamQueue.find(prefetchID);
     if (it != fetchStreamQueue.end())
     {
@@ -710,13 +732,17 @@ DecoupledBPUWithFTB::calPrefetchByFixedWidth(Addr &prefetchAddr, bool &flush)
             if (isSpecialFSQ) {
                 prefetchAddr = controlPC;
                 lastPrefetchAlignAddr = prefetchAddr;
-                DPRINTF(HWIPrefetch, "send a additional request "
-                        "because of special FSQ.\n");
+                DPRINTF(HWIPrefetch, "prefetch %lu, next prefetch: %lu\n",
+                        prefetchID-1, prefetchID);
                 return true;
             } else {
+                DPRINTF(HWIPrefetch, "no prefetch(addr repeat),",
+                        "next prefetch: %lu\n", prefetchID);
                 return false;
             }
         } else {
+            DPRINTF(HWIPrefetch, "prefetch %lu, next prefetch: %lu\n",
+                    prefetchID, isSpecialFSQ ? prefetchID : prefetchID+1);
             prefetchAddr = startPC;
             lastPrefetchAlignAddr = prefetchAddr;
             if (!isSpecialFSQ) {
@@ -725,6 +751,8 @@ DecoupledBPUWithFTB::calPrefetchByFixedWidth(Addr &prefetchAddr, bool &flush)
             return true;
         }
     }
+    DPRINTF(HWIPrefetch, "no prefetch(no valid fsq), next prefetch: %lu\n",
+            prefetchID);
     return false;
 }
 
@@ -1753,6 +1781,7 @@ DecoupledBPUWithFTB::dumpFsq(const char *when)
         DPRINTFR(DecoupleBPProbe, "StreamID %lu, ", it->first);
         printStream(it->second);
     }
+    DPRINTFR(DecoupleBPProbe, "\n");
 }
 
 // this funtion use finalPred to enq fsq(ftq) and update s0PC

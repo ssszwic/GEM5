@@ -592,15 +592,45 @@ BaseCache::recvTimingResp(PacketPtr pkt)
 
     CacheBlk *blk = tags->findBlock(pkt->getAddr(), pkt->isSecure());
 
-    // don't fill for fdip prefetch
-    if (pkt->req->isPrefetchReq)
+    // 1. Fill to cache tags when pkt is only generated from CPU
+    // 2. Fill to cache tags when pkt is generated from both CPU and Prefetcher
+    // 3. Fill to prefetch buffer when pkt is only generated from Prefetcher
+    // get all pkt in mshr
+    if (prefetcher)
     {
-        if (prefetcher)
-        {
-            if (prefetcher->isDecoupledPrefetch())
-            {
-                // fdip only prefetch blk that isn't in tags
-                assert(!blk);
+        if (prefetcher->isDecoupledPrefetch()) {
+            MSHR::TargetList targets = mshr->getServiceableTargets(pkt);
+            bool from_core = false;
+            bool from_prefetch = false;
+            for (auto &target: targets) {
+                switch (target.source) {
+                    case MSHR::Target::FromCPU:
+                        from_core = true;
+                        break;
+                    case MSHR::Target::FromPrefetcher:
+                        from_prefetch = true;
+                        break;
+                    default:
+                        break;
+                }
+            }
+            if (from_prefetch && from_core) {
+                // don't fill to prefetch buffer but prefetch is valid
+                prefetcher->prefetchUsed();
+                switch (targets.front().source) {
+                    case MSHR::Target::FromCPU:
+                        prefetcher->prefetchCatchFetch();
+                        break;
+                    case MSHR::Target::FromPrefetcher:
+                        prefetcher->fetchCatchPrefetch();
+                        break;
+                    default:
+                        panic("Must be FromCPU or FromPrefetcher but \n",
+                              targets.front().source);
+                        break;
+                }
+            }
+            if (from_prefetch && !from_core) {
                 blk = prefetcher->insertPrefetchData(pkt);
                 is_fill = false;
             }
@@ -1326,7 +1356,7 @@ BaseCache::fillCacheFromPrefetch(CacheBlk* prefetch_blk, PacketPtr pkt,
     DPRINTF(CacheRepl, "Replacement victim: %s\n", blk->print());
     assert(handleEvictions(evict_blks, writebacks));
     tags->insertBlockFromOther(prefetch_blk, blk, addr,
-                               pkt->req->requestorId());
+                            pkt->req->requestorId());
 
     assert(blk->isValid());
     assert(blk->isSecure() == pkt->isSecure());
@@ -1383,6 +1413,9 @@ BaseCache::access(PacketPtr pkt, CacheBlk *&blk, Cycles &lat,
                     pkt->getAddr(), pkt->isSecure() ? "s" : "ns");
                 if (move) {
                     blk = fillCacheFromPrefetch(prefetch_blk, pkt, writebacks);
+                }
+                else {
+                    blk = prefetch_blk;
                 }
             }
         }

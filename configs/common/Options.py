@@ -474,6 +474,8 @@ def addCommonOptions(parser):
                         help="Prefetch offset distance from IFUptr")
     parser.add_argument("--prefetch-width", default=8, type=int,
                         help="Prefetch width from IFUptr to PFptr")
+    parser.add_argument("--max-used-time", default=1, type=int,
+                        help="Number of prefetch buffer for fdip")
 
 
 def addSEOptions(parser):

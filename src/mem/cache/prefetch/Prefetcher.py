@@ -693,6 +693,7 @@ class FDIPPrefetcher(BasePrefetcher):
     cxx_class = "gem5::prefetch::FDIPPrefetcher"
     cxx_header = "mem/cache/prefetch/fdip.hh"
 
+    piq_latency = Param.Cycles(4, "The latency from filter prefetch req")
     numPIQEntry = Param.Unsigned(12, "Number of prefetch request entries")
     numPrefetchBuffer = Param.Unsigned(64,
                                 "Number of cacheline in prefetch buffer")

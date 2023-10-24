@@ -344,6 +344,9 @@ class Base : public ClockedObject
         statistics::Formula accuracy;
         statistics::Formula coverage;
 
+        statistics::Formula accuracyFinal;
+        statistics::Formula coverageFinal;
+
         /** The number of times a HW-prefetch hits in PIQ. */
         statistics::Scalar pfHitInPIQ;
 
@@ -364,6 +367,29 @@ class Base : public ClockedObject
          * (hit in cache, MSHR, WB). */
         statistics::Formula pfLate;
 
+        /** The number of times a HW-prefetch req hits in PIQ. */
+        statistics::Scalar reqHitInPIQ;
+
+        /** The number of times a HW-prefetch req hits in PF. */
+        statistics::Scalar reqHitInPF;
+
+        /** The number of times a HW-prefetch req hits in cache. */
+        statistics::Scalar reqHitInCache;
+
+        /** The number of times a HW-prefetch req hits in a MSHR. */
+        statistics::Scalar reqHitInMSHR;
+
+        /** The number of times a HW-prefetch req hits
+         * in the Write Buffer (WB). */
+        statistics::Scalar reqHitInWB;
+
+        /** The number of times a HW-prefetch is filtered
+         * (hit in cache, MSHR, WB, PIQ, PF). */
+        statistics::Formula reqFilter;
+
+        /** The number of times receive prefetch request. */
+        statistics::Scalar piqReceive;
+
         /**
          * The number of times insert piq. */
         statistics::Scalar piqInsert;
@@ -376,7 +402,20 @@ class Base : public ClockedObject
          * That is, when the req arrives at the cache,
          * the request is still not issued. */
         statistics::Scalar piqLate;
-
+        /**
+         * The number of times the piq flushed. */
+        statistics::Scalar piqFlush;
+        /**
+         * The number of times the prefetch req catch up
+         * fetch req in MSHR. */
+        statistics::Scalar prefetchCatchFetch;
+        /**
+         * The number of times the fetch req catch up
+         * prefetch req in MSHR. */
+        statistics::Scalar fetchCatchPrefetch;
+        /**
+         * The ratio of fetchCatchPrefetch to pfIssued. */
+        statistics::Formula fetchCatchPrefetchRatio;
 
     } prefetchStats;
 
@@ -446,6 +485,12 @@ class Base : public ClockedObject
     }
 
     void
+    prefetchUsed()
+    {
+        prefetchStats.pfUseful++;
+    }
+
+    void
     prefetchUnused()
     {
         prefetchStats.pfUnused++;
@@ -485,6 +530,54 @@ class Base : public ClockedObject
     pfHitInWB()
     {
         prefetchStats.pfHitInWB++;
+    }
+
+    void
+    reqHitInPIQ()
+    {
+        prefetchStats.reqHitInPIQ++;
+    }
+
+    void
+    reqHitInPF()
+    {
+        prefetchStats.reqHitInPF++;
+    }
+
+    void
+    reqHitInCache()
+    {
+        prefetchStats.reqHitInCache++;
+    }
+
+    void
+    reqHitInMSHR()
+    {
+        prefetchStats.reqHitInMSHR++;
+    }
+
+    void
+    reqHitInWB()
+    {
+        prefetchStats.reqHitInWB++;
+    }
+
+    void
+    piqFlush()
+    {
+        prefetchStats.piqFlush++;
+    }
+
+    void
+    prefetchCatchFetch()
+    {
+        prefetchStats.prefetchCatchFetch++;
+    }
+
+    void
+    fetchCatchPrefetch()
+    {
+        prefetchStats.fetchCatchPrefetch++;
     }
 
     /**
